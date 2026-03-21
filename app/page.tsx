@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
   Moon, Wind, Flame, Compass, Fingerprint, Users,
+  Flower2, Telescope, Sprout,
   Heart, Zap, Wrench,
   ArrowLeft, Timer, Mic, Scale, Sparkles,
   SlidersHorizontal, History, Copy, Download, X,
@@ -50,6 +51,9 @@ const CHALLENGES: Challenge[] = [
   { id: "decisions", label: "Life Decisions", opening: "Standing at a crossroads is one of the most human experiences there is. Good decisions emerge from clarity, not certainty. What choice is before you?" },
   { id: "identity", label: "Identity & Purpose", opening: "The question of who we are and why we're here has occupied thinkers for millennia. You're in good company. What is stirring in you around this?" },
   { id: "relationships", label: "Relationships", opening: "We are relational beings — our connections are both our greatest joy and our most fertile ground for growth. What is alive for you in your relationships?" },
+  { id: "meaning", label: "Meaning & Fulfilment", opening: "Some of the most profound questions arise not from suffering but from abundance — when life is fine on the surface, yet something deeper still calls out. What is it you're reaching for?" },
+  { id: "curiosity", label: "Curiosity & Wonder", opening: "Philosophy began not in crisis but in wonder — the simple refusal to take the world for granted. You don't need a problem to explore ideas. What has been occupying your thinking lately?" },
+  { id: "growth", label: "Growth & Change", opening: "The desire to become is one of the most vital forces in human life. Wisdom traditions have much to say about how we change well — with intention rather than mere circumstance. What are you growing toward?" },
 ];
 
 const MOODS = [
@@ -206,6 +210,9 @@ function ChallengeIcon({ id, size = 22, color = "#c9a84c" }: { id: string; size?
     case "decisions": return <Compass {...props} />;
     case "identity": return <Fingerprint {...props} />;
     case "relationships": return <Users {...props} />;
+    case "meaning": return <Flower2 {...props} />;
+    case "curiosity": return <Telescope {...props} />;
+    case "growth": return <Sprout {...props} />;
     default: return <Sparkles {...props} />;
   }
 }
