@@ -7,6 +7,7 @@ import {
   Heart, Zap, Wrench,
   ArrowLeft, Timer, Mic, Scale, Sparkles,
   SlidersHorizontal, History, Copy, Download, X,
+  Share2, Bookmark, FileDown, Bell, BellOff, RefreshCw,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -36,10 +37,12 @@ interface SessionRecord {
   id: string;
   challengeLabel: string;
   challengeIcon: string;
+  challengeId: string;
   mood: string;
   timestamp: number;
   messageCount: number;
   preview: string;
+  messages?: Message[];
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -373,6 +376,86 @@ function saveTraditions(t: string[]) {
   localStorage.setItem("equanima_traditions", JSON.stringify(t));
 }
 
+// ── Streak ────────────────────────────────────────────────────────────────────
+function loadStreak(): { count: number; lastDate: string } {
+  if (typeof window === "undefined") return { count: 0, lastDate: "" };
+  try { return JSON.parse(localStorage.getItem("equanima_streak") || '{"count":0,"lastDate":""}'); }
+  catch { return { count: 0, lastDate: "" }; }
+}
+function updateStreak(): number {
+  if (typeof window === "undefined") return 0;
+  const today = new Date().toDateString();
+  const s = loadStreak();
+  if (s.lastDate === today) return s.count;
+  const yesterday = new Date(Date.now() - 86400000).toDateString();
+  const count = s.lastDate === yesterday ? s.count + 1 : 1;
+  localStorage.setItem("equanima_streak", JSON.stringify({ count, lastDate: today }));
+  return count;
+}
+
+// ── Challenge visit counts ─────────────────────────────────────────────────────
+function loadVisitCounts(): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(localStorage.getItem("equanima_visit_counts") || "{}"); }
+  catch { return {}; }
+}
+function incrementVisitCount(id: string): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  const counts = loadVisitCounts();
+  counts[id] = (counts[id] || 0) + 1;
+  localStorage.setItem("equanima_visit_counts", JSON.stringify(counts));
+  return counts;
+}
+const RELATED_CHALLENGES: Record<string, string[]> = {
+  grief:         ["meaning", "identity"],
+  anxiety:       ["decisions", "growth"],
+  anger:         ["relationships", "identity"],
+  decisions:     ["anxiety", "growth"],
+  identity:      ["meaning", "relationships"],
+  relationships: ["identity", "anger"],
+  meaning:       ["curiosity", "growth"],
+  curiosity:     ["meaning", "identity"],
+  growth:        ["decisions", "meaning"],
+};
+function getSuggestedChallenge(counts: Record<string, number>): Challenge | null {
+  const visited = Object.keys(counts);
+  if (visited.length < 2) return null;
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const topId = sorted[0][0];
+  for (const id of (RELATED_CHALLENGES[topId] || [])) {
+    if (!counts[id]) return CHALLENGES.find(c => c.id === id) || null;
+  }
+  return null;
+}
+
+// ── Favourites ────────────────────────────────────────────────────────────────
+function loadFavourites(): string[] {
+  if (typeof window === "undefined") return [];
+  try { return JSON.parse(localStorage.getItem("equanima_favourites") || "[]"); }
+  catch { return []; }
+}
+function toggleFavouriteStored(content: string): string[] {
+  const key = content.slice(0, 120);
+  const favs = loadFavourites();
+  const idx = favs.indexOf(key);
+  const next = idx >= 0 ? favs.filter((_, i) => i !== idx) : [...favs, key];
+  localStorage.setItem("equanima_favourites", JSON.stringify(next));
+  return next;
+}
+
+// ── Notification ──────────────────────────────────────────────────────────────
+function showDailyNotification() {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+  const today = new Date().toDateString();
+  if (localStorage.getItem("equanima_notif_date") === today) return;
+  new Notification("Equanima · Today's Reflection", {
+    body: getDailyReflection(),
+    icon: "/icon.svg",
+  });
+  localStorage.setItem("equanima_notif_date", today);
+}
+
 // ─── Onboarding Modal ─────────────────────────────────────────────────────────
 
 function OnboardingModal({ onComplete }: { onComplete: (level: string) => void }) {
@@ -421,11 +504,15 @@ function OnboardingModal({ onComplete }: { onComplete: (level: string) => void }
 
 // ─── History Panel ────────────────────────────────────────────────────────────
 
-function HistoryPanel({ history, onClose, onClear }: {
+function HistoryPanel({ history, favourites, onClose, onClear, onResume }: {
   history: SessionRecord[];
+  favourites: string[];
   onClose: () => void;
   onClear: () => void;
+  onResume: (record: SessionRecord) => void;
 }) {
+  const [tab, setTab] = useState<"sessions" | "saved">("sessions");
+
   return (
     <div className="fixed inset-0 z-40 flex justify-end"
       style={{ background: "rgba(0,0,0,0.5)" }}
@@ -433,52 +520,106 @@ function HistoryPanel({ history, onClose, onClear }: {
       <div className="w-full max-w-sm h-full overflow-y-auto flex flex-col"
         style={{ background: "#1c1c1e", borderLeft: "1px solid #2a2a2e" }}
         onClick={(e) => e.stopPropagation()}>
+
+        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 sticky top-0"
           style={{ background: "#1c1c1e", borderBottom: "1px solid #2a2a2e" }}>
           <h3 className="font-semibold"
             style={{ color: "#c9a84c", fontFamily: "var(--font-playfair), Georgia, serif" }}>
-            Past Sessions
+            Your Journey
           </h3>
           <button onClick={onClose} className="p-1 rounded transition-colors" style={{ color: "#6b6460" }}>
             <X size={18} strokeWidth={1.5} />
           </button>
         </div>
 
-        {history.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-center p-8">
-            <div>
-              <div className="mb-3 flex justify-center"><History size={32} color="#3a3a3e" strokeWidth={1.5} /></div>
-              <p className="text-sm" style={{ color: "#6b6460" }}>No sessions yet.<br />Start a conversation to build your history.</p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex-1 p-4 space-y-3">
-            {history.map((s) => (
-              <div key={s.id} className="p-4 rounded-lg"
-                style={{ background: "#242428", border: "1px solid #2a2a2e" }}>
-                <div className="flex items-center gap-2 mb-1">
-                  <ChallengeIcon id={s.challengeIcon} size={16} />
-                  <span className="text-sm font-semibold" style={{ color: "#f5f0e8" }}>{s.challengeLabel}</span>
-                  <span className="text-xs ml-auto" style={{ color: "#4a4448" }}>{timeAgo(s.timestamp)}</span>
-                </div>
-                <div className="flex gap-2 mb-2">
-                  <span className="text-xs px-2 py-0.5 rounded-full"
-                    style={{ background: "rgba(201,168,76,0.1)", color: "#a8863a", border: "1px solid rgba(201,168,76,0.2)" }}>
-                    {s.mood}
-                  </span>
-                  <span className="text-xs" style={{ color: "#4a4448" }}>{s.messageCount} messages</span>
-                </div>
-                {s.preview && (
-                  <p className="text-xs italic" style={{ color: "#6b6460" }}>
-                    &ldquo;{s.preview.slice(0, 80)}{s.preview.length > 80 ? "…" : ""}&rdquo;
-                  </p>
-                )}
+        {/* Tabs */}
+        <div className="flex px-5 pt-3 pb-1 gap-4" style={{ borderBottom: "1px solid #2a2a2e" }}>
+          {(["sessions", "saved"] as const).map((t) => (
+            <button key={t} onClick={() => setTab(t)}
+              className="pb-2 text-xs font-semibold uppercase tracking-widest transition-colors"
+              style={{
+                color: tab === t ? "#c9a84c" : "#4a4448",
+                borderBottom: tab === t ? "2px solid #c9a84c" : "2px solid transparent",
+              }}>
+              {t === "sessions" ? `Sessions${history.length > 0 ? ` (${history.length})` : ""}` : `Saved${favourites.length > 0 ? ` (${favourites.length})` : ""}`}
+            </button>
+          ))}
+        </div>
+
+        {/* Sessions tab */}
+        {tab === "sessions" && (
+          history.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center text-center p-8">
+              <div>
+                <div className="mb-3 flex justify-center"><History size={32} color="#3a3a3e" strokeWidth={1.5} /></div>
+                <p className="text-sm" style={{ color: "#6b6460" }}>No sessions yet.<br />Start a conversation to build your history.</p>
               </div>
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div className="flex-1 p-4 space-y-3">
+              {history.map((s) => (
+                <div key={s.id} className="p-4 rounded-lg"
+                  style={{ background: "#242428", border: "1px solid #2a2a2e" }}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <ChallengeIcon id={s.challengeIcon} size={16} />
+                    <span className="text-sm font-semibold" style={{ color: "#f5f0e8" }}>{s.challengeLabel}</span>
+                    <span className="text-xs ml-auto" style={{ color: "#4a4448" }}>{timeAgo(s.timestamp)}</span>
+                  </div>
+                  <div className="flex gap-2 mb-3">
+                    <span className="text-xs px-2 py-0.5 rounded-full"
+                      style={{ background: "rgba(201,168,76,0.1)", color: "#a8863a", border: "1px solid rgba(201,168,76,0.2)" }}>
+                      {s.mood}
+                    </span>
+                    <span className="text-xs" style={{ color: "#4a4448" }}>{s.messageCount} exchanges</span>
+                  </div>
+                  {s.preview && (
+                    <p className="text-xs italic mb-3" style={{ color: "#6b6460" }}>
+                      &ldquo;{s.preview.slice(0, 80)}{s.preview.length > 80 ? "…" : ""}&rdquo;
+                    </p>
+                  )}
+                  {s.messages && s.messages.length > 0 && (
+                    <button onClick={() => onResume(s)}
+                      className="w-full py-1.5 text-xs rounded transition-all"
+                      style={{ border: "1px solid rgba(201,168,76,0.3)", color: "#c9a84c", background: "transparent" }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(201,168,76,0.08)"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
+                      Resume this conversation
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )
         )}
 
-        {history.length > 0 && (
+        {/* Saved tab */}
+        {tab === "saved" && (
+          favourites.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center text-center p-8">
+              <div>
+                <div className="mb-3 flex justify-center"><Bookmark size={32} color="#3a3a3e" strokeWidth={1.5} /></div>
+                <p className="text-sm" style={{ color: "#6b6460" }}>No saved insights yet.<br />Bookmark AI responses that resonate with you.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 p-4 space-y-3">
+              {favourites.map((f, i) => (
+                <div key={i} className="p-4 rounded-lg"
+                  style={{ background: "#242428", border: "1px solid #2a2a2e" }}>
+                  <div className="flex items-start gap-2 mb-1">
+                    <Bookmark size={12} color="#c9a84c" strokeWidth={1.5} style={{ flexShrink: 0, marginTop: 3 }} />
+                    <p className="text-sm leading-relaxed italic" style={{ color: "#c8bfaf" }}>
+                      &ldquo;{f}&rdquo;
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+
+        {history.length > 0 && tab === "sessions" && (
           <div className="p-4" style={{ borderTop: "1px solid #2a2a2e" }}>
             <button onClick={onClear} className="w-full py-2 text-xs rounded-lg transition-all"
               style={{ color: "#6b6460", border: "1px solid #2a2a2e" }}
@@ -495,12 +636,17 @@ function HistoryPanel({ history, onClose, onClear }: {
 
 // ─── Landing Screen ───────────────────────────────────────────────────────────
 
-function LandingScreen({ onSelect, selectedTraditions, onTraditionsChange, onShowHistory, historyCount }: {
+function LandingScreen({ onSelect, selectedTraditions, onTraditionsChange, onShowHistory, historyCount,
+  streak, suggestedChallenge, notifEnabled, onNotificationToggle }: {
   onSelect: (c: Challenge) => void;
   selectedTraditions: string[];
   onTraditionsChange: (t: string[]) => void;
   onShowHistory: () => void;
   historyCount: number;
+  streak: number;
+  suggestedChallenge: Challenge | null;
+  notifEnabled: boolean;
+  onNotificationToggle: () => void;
 }) {
   const [showTraditions, setShowTraditions] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -551,7 +697,7 @@ function LandingScreen({ onSelect, selectedTraditions, onTraditionsChange, onSho
 
       {/* Controls row */}
       <div className="px-6 pb-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
+        <div className="max-w-4xl mx-auto flex items-center justify-between gap-3 flex-wrap">
           <button onClick={() => setShowTraditions(!showTraditions)}
             className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg transition-all"
             style={{
@@ -567,13 +713,29 @@ function LandingScreen({ onSelect, selectedTraditions, onTraditionsChange, onSho
             )}
           </button>
 
-          <button onClick={onShowHistory}
-            className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg transition-all"
-            style={{ border: "1px solid #3a3a3e", color: "#6b6460" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#c9a84c"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#6b6460"; }}>
-            <History size={14} strokeWidth={1.5} /> History {historyCount > 0 && `(${historyCount})`}
-          </button>
+          <div className="flex items-center gap-2">
+            {streak >= 2 && (
+              <span className="text-xs px-2.5 py-1.5 rounded-full"
+                style={{ background: "rgba(201,168,76,0.1)", color: "#a8863a", border: "1px solid rgba(201,168,76,0.2)" }}>
+                ✦ Day {streak}
+              </span>
+            )}
+            <button onClick={onNotificationToggle}
+              className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg transition-all"
+              style={{ border: "1px solid #3a3a3e", color: notifEnabled ? "#c9a84c" : "#6b6460" }}
+              title={notifEnabled ? "Disable daily reflection reminder" : "Enable daily reflection reminder"}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#c9a84c"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = notifEnabled ? "#c9a84c" : "#6b6460"; }}>
+              {notifEnabled ? <Bell size={14} strokeWidth={1.5} /> : <BellOff size={14} strokeWidth={1.5} />}
+            </button>
+            <button onClick={onShowHistory}
+              className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg transition-all"
+              style={{ border: "1px solid #3a3a3e", color: "#6b6460" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#c9a84c"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#6b6460"; }}>
+              <History size={14} strokeWidth={1.5} /> {historyCount > 0 ? historyCount : ""}
+            </button>
+          </div>
         </div>
 
         {/* Tradition filter panel */}
@@ -611,6 +773,33 @@ function LandingScreen({ onSelect, selectedTraditions, onTraditionsChange, onSho
           </div>
         )}
       </div>
+
+      {/* Suggested challenge */}
+      {suggestedChallenge && (
+        <div className="px-6 pb-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="p-4 rounded-lg flex items-center gap-4"
+              style={{ background: "rgba(201,168,76,0.06)", border: "1px solid rgba(201,168,76,0.2)" }}>
+              <div className="flex-shrink-0">
+                <ChallengeIcon id={suggestedChallenge.id} size={22} color="#a8863a" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs uppercase tracking-widest mb-0.5" style={{ color: "#a8863a" }}>
+                  Based on your journey, you might want to explore
+                </p>
+                <p className="text-sm font-semibold" style={{ color: "#f5f0e8" }}>{suggestedChallenge.label}</p>
+              </div>
+              <button onClick={() => onSelect(suggestedChallenge)}
+                className="flex-shrink-0 text-xs px-3 py-1.5 rounded-lg transition-all"
+                style={{ border: "1px solid rgba(201,168,76,0.4)", color: "#c9a84c", background: "transparent" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(201,168,76,0.1)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
+                Explore
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Challenge Cards */}
       <div className={`flex-1 px-6 pb-8 ${mounted ? "fade-in-up delay-500" : "opacity-0"}`}>
@@ -717,7 +906,8 @@ function MoodScreen({ challenge, onSelect, onBack }: {
 // ─── Chat Screen ──────────────────────────────────────────────────────────────
 
 function ChatScreen({ challenge, mood, messages, onBack, onSend, onGenerateWisdom,
-  isStreaming, streamingText, suggestions, counterpointText, isCounterpointing, onCounterpoint, sessionTime }: {
+  isStreaming, streamingText, suggestions, counterpointText, isCounterpointing, onCounterpoint, sessionTime,
+  favourites, onFavourite, onRegenerate, onExport }: {
   challenge: Challenge;
   mood: string;
   messages: Message[];
@@ -731,11 +921,16 @@ function ChatScreen({ challenge, mood, messages, onBack, onSend, onGenerateWisdo
   isCounterpointing: boolean;
   onCounterpoint: () => void;
   sessionTime: number;
+  favourites: string[];
+  onFavourite: (content: string) => void;
+  onRegenerate: () => void;
+  onExport: () => void;
 }) {
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const id = setInterval(() => setPlaceholderIdx((i) => (i + 1) % PLACEHOLDERS.length), 4000);
@@ -747,6 +942,17 @@ function ChatScreen({ challenge, mood, messages, onBack, onSend, onGenerateWisdo
   const showWisdomButton = userMessages >= 2 && !isStreaming && !isCounterpointing;
   const showCounterpointButton = aiMessages >= 1 && !isStreaming && !isCounterpointing && !counterpointText;
   const moodLabel = MOODS.find((m) => m.id === mood)?.label ?? "";
+
+  // Last non-counterpoint AI message index (for regenerate)
+  const lastAiIdx = messages.reduce((acc, m, i) => (m.role === "assistant" && !m.isCounterpoint ? i : acc), -1);
+  const canRegenerate = lastAiIdx >= 0 && !isStreaming && !isCounterpointing;
+
+  function autoResize() {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -807,9 +1013,19 @@ function ChatScreen({ challenge, mood, messages, onBack, onSend, onGenerateWisdo
           </div>
           <p className="text-xs" style={{ color: "#4a4448" }}>Equanima · Philosophical Companion</p>
         </div>
-        {/* Session timer */}
-        <div className="text-xs font-mono flex-shrink-0" style={{ color: "#4a4448" }}>
-          <Timer size={12} strokeWidth={1.5} style={{ display: "inline", marginRight: 4 }} /> {formatTime(sessionTime)}
+        {/* Session timer + export */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="text-xs font-mono" style={{ color: "#4a4448" }}>
+            <Timer size={12} strokeWidth={1.5} style={{ display: "inline", marginRight: 4 }} /> {formatTime(sessionTime)}
+          </div>
+          {messages.length > 1 && (
+            <button onClick={onExport} title="Export session"
+              className="p-1.5 rounded transition-all" style={{ color: "#4a4448" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#c9a84c"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#4a4448"; }}>
+              <FileDown size={15} strokeWidth={1.5} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -825,7 +1041,26 @@ function ChatScreen({ challenge, mood, messages, onBack, onSend, onGenerateWisdo
                   </span>
                   <div className="ai-prose text-sm leading-relaxed" style={{ color: "#f5f0e8" }}
                     dangerouslySetInnerHTML={{ __html: renderMessage(msg.content) }} />
-                  <div className="w-8 h-px" style={{ background: "rgba(201,168,76,0.2)" }} />
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-px" style={{ background: "rgba(201,168,76,0.2)" }} />
+                    <button onClick={() => onFavourite(msg.content)} title="Save this insight"
+                      className="transition-all"
+                      style={{ color: favourites.includes(msg.content.slice(0, 120)) ? "#c9a84c" : "#3a3a3e" }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#c9a84c"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = favourites.includes(msg.content.slice(0, 120)) ? "#c9a84c" : "#3a3a3e"; }}>
+                      <Bookmark size={13} strokeWidth={1.5}
+                        fill={favourites.includes(msg.content.slice(0, 120)) ? "#c9a84c" : "none"} />
+                    </button>
+                    {i === lastAiIdx && canRegenerate && (
+                      <button onClick={onRegenerate} title="Try a different response"
+                        className="transition-all"
+                        style={{ color: "#3a3a3e" }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#6b6460"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#3a3a3e"; }}>
+                        <RefreshCw size={13} strokeWidth={1.5} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
               {msg.role === "assistant" && msg.isCounterpoint && (
@@ -940,10 +1175,13 @@ function ChatScreen({ challenge, mood, messages, onBack, onSend, onGenerateWisdo
       <div className="px-4 pb-4 pt-3" style={{ borderTop: "1px solid #2a2a2e" }}>
         <div className="max-w-2xl mx-auto">
           <form onSubmit={handleSubmit} className="flex gap-2 items-end">
-            <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
+            <textarea ref={textareaRef} value={input}
+              onChange={(e) => { setInput(e.target.value); autoResize(); }}
+              onInput={autoResize}
+              onKeyDown={handleKeyDown}
               placeholder={PLACEHOLDERS[placeholderIdx]} rows={1} disabled={isStreaming}
               className="flex-1 resize-none text-sm rounded-lg px-4 py-3 outline-none transition-all"
-              style={{ background: "#2a2a2e", color: "#f5f0e8", border: "1px solid #3a3a3e", maxHeight: "120px", lineHeight: "1.5" }}
+              style={{ background: "#2a2a2e", color: "#f5f0e8", border: "1px solid #3a3a3e", maxHeight: "120px", lineHeight: "1.5", overflow: "hidden" }}
               onFocus={(e) => { e.currentTarget.style.borderColor = "#c9a84c"; }}
               onBlur={(e) => { e.currentTarget.style.borderColor = "#3a3a3e"; }} />
             {/* Voice button */}
@@ -1100,7 +1338,7 @@ function WisdomCardScreen({ card, challenge, onNewSession, onContinue }: {
           </button>
         </div>
 
-        <div className={`grid grid-cols-2 gap-3 mb-3 ${revealed ? "fade-in delay-400" : "opacity-0"}`}>
+        <div className={`grid grid-cols-3 gap-3 mb-3 ${revealed ? "fade-in delay-400" : "opacity-0"}`}>
           <button onClick={handleCopy}
             className="py-3 rounded-lg text-xs font-semibold transition-all"
             style={{ border: "1px solid #3a3a3e", color: "#c8bfaf", background: "transparent" }}
@@ -1114,7 +1352,20 @@ function WisdomCardScreen({ card, challenge, onNewSession, onContinue }: {
             style={{ border: "1px solid #3a3a3e", color: "#c8bfaf", background: "transparent" }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#c9a84c"; (e.currentTarget as HTMLButtonElement).style.color = "#c9a84c"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#3a3a3e"; (e.currentTarget as HTMLButtonElement).style.color = "#c8bfaf"; }}>
-            <Download size={13} strokeWidth={2} style={{ display: "inline", marginRight: 5 }} />Download
+            <Download size={13} strokeWidth={2} style={{ display: "inline", marginRight: 5 }} />Save
+          </button>
+          <button onClick={async () => {
+            const text = `"${card.insight}"\n\n— Equanima`;
+            if (navigator.share) {
+              try { await navigator.share({ title: "Equanima Wisdom", text, url: window.location.href }); }
+              catch { /* user cancelled */ }
+            } else { handleCopy(); }
+          }}
+            className="py-3 rounded-lg text-xs font-semibold transition-all"
+            style={{ border: "1px solid #3a3a3e", color: "#c8bfaf", background: "transparent" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#c9a84c"; (e.currentTarget as HTMLButtonElement).style.color = "#c9a84c"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#3a3a3e"; (e.currentTarget as HTMLButtonElement).style.color = "#c8bfaf"; }}>
+            <Share2 size={13} strokeWidth={2} style={{ display: "inline", marginRight: 5 }} />Share
           </button>
         </div>
 
@@ -1165,6 +1416,11 @@ export default function Page() {
   const [sessionStart, setSessionStart] = useState<number | null>(null);
   const [sessionTime, setSessionTime] = useState(0);
   const systemPromptRef = useRef("");
+  const [streak, setStreak] = useState(0);
+  const [visitCounts, setVisitCounts] = useState<Record<string, number>>({});
+  const [suggestedChallenge, setSuggestedChallenge] = useState<Challenge | null>(null);
+  const [favourites, setFavourites] = useState<string[]>([]);
+  const [notifEnabled, setNotifEnabled] = useState(false);
 
   // Load persisted data on mount
   useEffect(() => {
@@ -1173,6 +1429,15 @@ export default function Page() {
     setShowOnboarding(!level);
     setSelectedTraditions(loadTraditions());
     setHistory(loadHistory());
+    const s = updateStreak();
+    setStreak(s);
+    const counts = loadVisitCounts();
+    setVisitCounts(counts);
+    setSuggestedChallenge(getSuggestedChallenge(counts));
+    setFavourites(loadFavourites());
+    const notifPref = localStorage.getItem("equanima_notif") === "true";
+    setNotifEnabled(notifPref);
+    if (notifPref) showDailyNotification();
   }, []);
 
   // Session timer
@@ -1207,6 +1472,9 @@ export default function Page() {
   }
 
   function selectChallenge(c: Challenge) {
+    const counts = incrementVisitCount(c.id);
+    setVisitCounts(counts);
+    setSuggestedChallenge(getSuggestedChallenge(counts));
     setChallenge(c);
     setScreen("mood");
   }
@@ -1329,10 +1597,12 @@ export default function Page() {
         id: Date.now().toString(),
         challengeLabel: challenge.label,
         challengeIcon: challenge.id,
+        challengeId: challenge.id,
         mood,
         timestamp: Date.now(),
         messageCount: userMessages.length,
         preview: userMessages[0].content,
+        messages,
       };
       saveSession(record);
       setHistory(loadHistory());
@@ -1374,15 +1644,88 @@ export default function Page() {
         id: Date.now().toString(),
         challengeLabel: challenge.label,
         challengeIcon: challenge.id,
+        challengeId: challenge.id,
         mood,
         timestamp: Date.now(),
         messageCount: userMessages.length,
         preview: userMessages[0].content,
+        messages,
       };
       saveSession(record);
       setHistory(loadHistory());
     }
     handleNewSession();
+  }
+
+  function handleFavourite(content: string) {
+    setFavourites(toggleFavouriteStored(content));
+  }
+
+  function handleRegenerate() {
+    const lastUserIdx = messages.reduce((acc, m, i) => (m.role === "user" ? i : acc), -1);
+    if (lastUserIdx < 0) return;
+    const lastUserText = messages[lastUserIdx].content;
+    const historyBefore = messages.slice(0, lastUserIdx);
+    sendToAPI(historyBefore, lastUserText);
+  }
+
+  function handleExportTxt() {
+    if (!challenge) return;
+    const lines: string[] = [
+      `Equanima — ${challenge.label}`,
+      `Mood: ${MOODS.find((m) => m.id === mood)?.label ?? mood}`,
+      `Date: ${new Date().toLocaleDateString()}`,
+      "",
+      "───────────────────────────────",
+      "",
+    ];
+    for (const msg of messages) {
+      if (msg.role === "user") {
+        lines.push(`You: ${msg.content}`);
+      } else {
+        lines.push(`Equanima${msg.isCounterpoint ? " (Counterpoint)" : ""}: ${msg.content}`);
+      }
+      lines.push("");
+    }
+    lines.push("— Equanima: a space for the examined life");
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `equanima-${challenge.id}-${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleResume(record: SessionRecord) {
+    if (!record.messages || record.messages.length === 0) return;
+    const c = CHALLENGES.find((ch) => ch.id === record.challengeId) ?? null;
+    if (!c) return;
+    setChallenge(c);
+    setMood(record.mood);
+    setMessages(record.messages);
+    setSuggestions([]);
+    setCounterpointText("");
+    setSessionStart(Date.now());
+    setSessionTime(0);
+    systemPromptRef.current = buildSystemPrompt(record.mood, selectedTraditions, onboardingLevel);
+    setShowHistory(false);
+    setScreen("chat");
+  }
+
+  async function handleNotificationToggle() {
+    if (notifEnabled) {
+      localStorage.setItem("equanima_notif", "false");
+      setNotifEnabled(false);
+    } else {
+      if (!("Notification" in window)) { alert("Notifications are not supported in this browser."); return; }
+      const perm = await Notification.requestPermission();
+      if (perm === "granted") {
+        localStorage.setItem("equanima_notif", "true");
+        setNotifEnabled(true);
+        showDailyNotification();
+      }
+    }
   }
 
   return (
@@ -1391,11 +1734,13 @@ export default function Page() {
       {showHistory && (
         <HistoryPanel
           history={history}
+          favourites={favourites}
           onClose={() => setShowHistory(false)}
           onClear={() => {
             localStorage.removeItem("equanima_history");
             setHistory([]);
           }}
+          onResume={handleResume}
         />
       )}
 
@@ -1418,6 +1763,10 @@ export default function Page() {
           onTraditionsChange={handleTraditionsChange}
           onShowHistory={() => setShowHistory(true)}
           historyCount={history.length}
+          streak={streak}
+          suggestedChallenge={suggestedChallenge}
+          notifEnabled={notifEnabled}
+          onNotificationToggle={handleNotificationToggle}
         />
       )}
 
@@ -1444,6 +1793,10 @@ export default function Page() {
           isCounterpointing={isCounterpointing}
           onCounterpoint={handleCounterpoint}
           sessionTime={sessionTime}
+          favourites={favourites}
+          onFavourite={handleFavourite}
+          onRegenerate={handleRegenerate}
+          onExport={handleExportTxt}
         />
       )}
 

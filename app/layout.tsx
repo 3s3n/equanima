@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Inter } from "next/font/google";
 import "./globals.css";
 
@@ -16,7 +16,29 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Equanima — Philosophical AI Companion",
-  description: "Where ancient wisdom meets modern challenges",
+  description:
+    "Where ancient wisdom meets modern challenges. Draw on Stoicism, Buddhism, Existentialism, Taoism and more to navigate life with greater clarity.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Equanima",
+  },
+  openGraph: {
+    title: "Equanima — Philosophical AI Companion",
+    description: "Where ancient wisdom meets modern challenges",
+    type: "website",
+    siteName: "Equanima",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Equanima — Philosophical AI Companion",
+    description: "Where ancient wisdom meets modern challenges",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#c9a84c",
 };
 
 export default function RootLayout({
