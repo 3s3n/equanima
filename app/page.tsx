@@ -528,7 +528,7 @@ function LandingScreen({ onSelect, selectedTraditions, onTraditionsChange, onSho
         </h1>
         <p className={`text-xl md:text-2xl font-light uppercase tracking-widest ${mounted ? "fade-in-up delay-200" : "opacity-0"}`}
           style={{ color: "#c8bfaf", letterSpacing: "0.25em", fontFamily: "var(--font-inter), sans-serif" }}>
-          {historyCount > 0 ? "Welcome back. What are you carrying today?" : "Where ancient wisdom meets modern challenges"}
+          Where ancient wisdom meets modern challenges
         </p>
         <div className={`mt-6 w-24 h-px ${mounted ? "fade-in-up delay-300" : "opacity-0"}`}
           style={{ background: "linear-gradient(to right, transparent, #c9a84c, transparent)" }} />
