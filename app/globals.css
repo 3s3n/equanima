@@ -63,12 +63,53 @@ body {
 .ai-prose strong {
   color: #e2c97e;
   font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: rgba(201, 168, 76, 0.35);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
 }
 .ai-prose p {
   margin-bottom: 0.75rem;
 }
 .ai-prose p:last-child {
   margin-bottom: 0;
+}
+
+/* Entrance animations */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.fade-in-up {
+  animation: fadeInUp 0.6s ease-out both;
+}
+.fade-in {
+  animation: fadeIn 0.5s ease-out both;
+}
+.delay-100 { animation-delay: 0.1s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }
+.delay-400 { animation-delay: 0.4s; }
+.delay-500 { animation-delay: 0.5s; }
+.delay-600 { animation-delay: 0.6s; }
+.delay-700 { animation-delay: 0.7s; }
+
+/* Gentle pulse for loading */
+@keyframes gentle-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.95); }
+  50%       { opacity: 1;   transform: scale(1.05); }
+}
+.gentle-pulse {
+  animation: gentle-pulse 2s ease-in-out infinite;
+}
+
+/* Card glow on hover */
+.challenge-card:hover {
+  box-shadow: 0 0 24px rgba(201, 168, 76, 0.15);
 }
 
 /* Typing cursor */

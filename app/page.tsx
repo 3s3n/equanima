@@ -11,7 +11,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Screen = "landing" | "mood" | "chat" | "wisdom";
+type Screen = "landing" | "mood" | "transitioning" | "chat" | "wisdom";
 
 interface Message {
   role: "user" | "assistant";
@@ -78,6 +78,14 @@ const ONBOARDING_LEVELS = [
   { id: "explorer", label: "Curious explorer", desc: "I've read a little, want to know more" },
   { id: "practitioner", label: "Regular practitioner", desc: "I engage with philosophy regularly" },
   { id: "academic", label: "Academic / professional", desc: "Philosophy is my field" },
+];
+
+const PLACEHOLDERS = [
+  "Begin anywhere…",
+  "What brings you here today?",
+  "Say it plainly — we'll find the wisdom in it.",
+  "What's present for you right now?",
+  "Share what's stirring in you…",
 ];
 
 const DAILY_REFLECTIONS = [
@@ -225,6 +233,31 @@ function MoodIcon({ id, size = 22, color = "#c9a84c" }: { id: string; size?: num
     case "practical": return <Wrench {...props} />;
     default: return <Sparkles {...props} />;
   }
+}
+
+function TransitionScreen({ challenge }: { challenge: Challenge }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center fade-in"
+      style={{ background: "#1c1c1e" }}>
+      <div className="text-center">
+        <div className="mb-6 flex justify-center fade-in-up delay-100">
+          <ChallengeIcon id={challenge.id} size={52} />
+        </div>
+        <h2 className="text-2xl font-bold mb-3 fade-in-up delay-200"
+          style={{ color: "#f5f0e8", fontFamily: "var(--font-playfair), Georgia, serif" }}>
+          {challenge.label}
+        </h2>
+        <p className="text-xs tracking-widest uppercase fade-in-up delay-300" style={{ color: "#6b6460" }}>
+          Preparing your space
+        </p>
+        <div className="mt-10 flex justify-center fade-in-up delay-400">
+          <div className="gentle-pulse">
+            <Sparkles size={18} color="#c9a84c" strokeWidth={1.5} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function drawWrappedText(
@@ -470,7 +503,10 @@ function LandingScreen({ onSelect, selectedTraditions, onTraditionsChange, onSho
   historyCount: number;
 }) {
   const [showTraditions, setShowTraditions] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const dailyRef = getDailyReflection();
+
+  useEffect(() => { const t = setTimeout(() => setMounted(true), 50); return () => clearTimeout(t); }, []);
 
   function toggleTradition(id: string) {
     const next = selectedTraditions.includes(id)
@@ -483,32 +519,30 @@ function LandingScreen({ onSelect, selectedTraditions, onTraditionsChange, onSho
     <div className="min-h-screen flex flex-col">
       {/* Hero */}
       <div className="flex flex-col items-center justify-center pt-16 pb-8 px-6 text-center">
-        <div className="mb-4 gold-pulse flex items-center justify-center">
+        <div className={`mb-4 gold-pulse flex items-center justify-center ${mounted ? "fade-in-up" : "opacity-0"}`}>
           <Sparkles size={36} color="#c9a84c" strokeWidth={1.5} />
         </div>
-        <h1 className="text-6xl md:text-7xl font-bold tracking-wide mb-4"
+        <h1 className={`text-6xl md:text-7xl font-bold tracking-wide mb-4 ${mounted ? "fade-in-up delay-100" : "opacity-0"}`}
           style={{ color: "#c9a84c", fontFamily: "var(--font-playfair), Georgia, serif" }}>
           Equanima
         </h1>
-        <p className="text-xl md:text-2xl font-light uppercase tracking-widest"
+        <p className={`text-xl md:text-2xl font-light uppercase tracking-widest ${mounted ? "fade-in-up delay-200" : "opacity-0"}`}
           style={{ color: "#c8bfaf", letterSpacing: "0.25em", fontFamily: "var(--font-inter), sans-serif" }}>
-          Where ancient wisdom meets modern challenges
+          {historyCount > 0 ? "Welcome back. What are you carrying today?" : "Where ancient wisdom meets modern challenges"}
         </p>
-        <div className="mt-6 w-24 h-px"
+        <div className={`mt-6 w-24 h-px ${mounted ? "fade-in-up delay-300" : "opacity-0"}`}
           style={{ background: "linear-gradient(to right, transparent, #c9a84c, transparent)" }} />
       </div>
 
       {/* Daily Reflection */}
-      <div className="px-6 pb-6">
+      <div className={`px-6 pb-6 ${mounted ? "fade-in-up delay-400" : "opacity-0"}`}>
         <div className="max-w-2xl mx-auto">
-          <div className="p-5 rounded-lg" style={{ background: "#242428", border: "1px solid #2a2a2e" }}>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs uppercase tracking-widest font-semibold" style={{ color: "#a8863a" }}>
-                Today&rsquo;s Reflection
-              </span>
-              <div className="flex-1 h-px" style={{ background: "#2a2a2e" }} />
-            </div>
-            <p className="text-sm italic leading-relaxed" style={{ color: "#c8bfaf", fontFamily: "var(--font-playfair), Georgia, serif" }}>
+          <div className="p-7 rounded-lg text-center" style={{ background: "#242428", border: "1px solid #2a2a2e" }}>
+            <span className="text-xs uppercase tracking-widest font-semibold" style={{ color: "#a8863a" }}>
+              Today&rsquo;s Reflection
+            </span>
+            <div className="mt-3 mb-3 w-12 h-px mx-auto" style={{ background: "linear-gradient(to right, transparent, #c9a84c, transparent)" }} />
+            <p className="text-base italic leading-relaxed" style={{ color: "#c8bfaf", fontFamily: "var(--font-playfair), Georgia, serif" }}>
               &ldquo;{dailyRef}&rdquo;
             </p>
           </div>
@@ -579,15 +613,15 @@ function LandingScreen({ onSelect, selectedTraditions, onTraditionsChange, onSho
       </div>
 
       {/* Challenge Cards */}
-      <div className="flex-1 px-6 pb-8">
+      <div className={`flex-1 px-6 pb-8 ${mounted ? "fade-in-up delay-500" : "opacity-0"}`}>
         <div className="max-w-4xl mx-auto">
           <p className="text-center text-xs uppercase tracking-widest mb-6" style={{ color: "#a8863a" }}>
-            Choose your challenge
+            What are you navigating?
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {CHALLENGES.map((c) => (
               <button key={c.id} onClick={() => onSelect(c)}
-                className="group text-left p-6 rounded-lg border transition-all duration-300"
+                className="challenge-card group text-left p-6 rounded-lg border transition-all duration-300"
                 style={{ background: "#2a2a2e", borderColor: "#3a3a3e" }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLButtonElement).style.borderColor = "#c9a84c";
@@ -614,7 +648,7 @@ function LandingScreen({ onSelect, selectedTraditions, onTraditionsChange, onSho
 
       <footer className="text-center py-5 text-xs tracking-wide"
         style={{ color: "#6b6460", borderTop: "1px solid #2a2a2e" }}>
-        Built for Encode Club Hackathon · Powered by Claude
+        Equanima — a space for the examined life
       </footer>
     </div>
   );
@@ -700,7 +734,13 @@ function ChatScreen({ challenge, mood, messages, onBack, onSend, onGenerateWisdo
 }) {
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const id = setInterval(() => setPlaceholderIdx((i) => (i + 1) % PLACEHOLDERS.length), 4000);
+    return () => clearInterval(id);
+  }, []);
 
   const userMessages = messages.filter((m) => m.role === "user").length;
   const aiMessages = messages.filter((m) => m.role === "assistant" && !m.isCounterpoint).length;
@@ -779,23 +819,23 @@ function ChatScreen({ challenge, mood, messages, onBack, onSend, onGenerateWisdo
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               {msg.role === "assistant" && !msg.isCounterpoint && (
-                <div className="flex flex-col gap-1 max-w-[85%]">
-                  <span className="text-xs font-semibold tracking-widest uppercase mb-1 flex items-center gap-1.5" style={{ color: "#c9a84c" }}>
+                <div className="flex flex-col gap-2 max-w-[85%]">
+                  <span className="text-xs font-semibold tracking-widest uppercase flex items-center gap-1.5" style={{ color: "#c9a84c" }}>
                     <Sparkles size={11} strokeWidth={2} /> Equanima
                   </span>
-                  <div className="ai-prose text-sm leading-relaxed rounded-lg px-4 py-3"
-                    style={{ background: "#242428", color: "#f5f0e8", border: "1px solid #2a2a2e" }}
+                  <div className="ai-prose text-sm leading-relaxed" style={{ color: "#f5f0e8" }}
                     dangerouslySetInnerHTML={{ __html: renderMessage(msg.content) }} />
+                  <div className="w-8 h-px" style={{ background: "rgba(201,168,76,0.2)" }} />
                 </div>
               )}
               {msg.role === "assistant" && msg.isCounterpoint && (
-                <div className="flex flex-col gap-1 max-w-[85%]">
-                  <span className="text-xs font-semibold tracking-widest uppercase mb-1 flex items-center gap-1.5" style={{ color: "#a8863a" }}>
+                <div className="flex flex-col gap-2 max-w-[85%]">
+                  <span className="text-xs font-semibold tracking-widest uppercase flex items-center gap-1.5" style={{ color: "#a8863a" }}>
                     <Scale size={11} strokeWidth={2} /> Counterpoint
                   </span>
-                  <div className="ai-prose text-sm leading-relaxed rounded-lg px-4 py-3"
-                    style={{ background: "#1c1a14", color: "#f5f0e8", border: "1px solid #4a3a1e" }}
+                  <div className="ai-prose text-sm leading-relaxed pl-3" style={{ color: "#f5f0e8", borderLeft: "2px solid #4a3a1e" }}
                     dangerouslySetInnerHTML={{ __html: renderMessage(msg.content) }} />
+                  <div className="w-8 h-px" style={{ background: "rgba(168,134,58,0.2)" }} />
                 </div>
               )}
               {msg.role === "user" && (
@@ -810,24 +850,19 @@ function ChatScreen({ challenge, mood, messages, onBack, onSend, onGenerateWisdo
           {/* Streaming */}
           {isStreaming && streamingText && (
             <div className="flex justify-start">
-              <div className="flex flex-col gap-1 max-w-[85%]">
-                <span className="text-xs font-semibold tracking-widest uppercase mb-1 flex items-center gap-1.5" style={{ color: "#c9a84c" }}><Sparkles size={11} strokeWidth={2} /> Equanima</span>
-                <div className="ai-prose text-sm leading-relaxed rounded-lg px-4 py-3 typing-cursor"
-                  style={{ background: "#242428", color: "#f5f0e8", border: "1px solid #2a2a2e" }}
+              <div className="flex flex-col gap-2 max-w-[85%]">
+                <span className="text-xs font-semibold tracking-widest uppercase flex items-center gap-1.5" style={{ color: "#c9a84c" }}><Sparkles size={11} strokeWidth={2} /> Equanima</span>
+                <div className="ai-prose text-sm leading-relaxed typing-cursor" style={{ color: "#f5f0e8" }}
                   dangerouslySetInnerHTML={{ __html: renderMessage(streamingText) }} />
               </div>
             </div>
           )}
           {isStreaming && !streamingText && (
             <div className="flex justify-start">
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-semibold tracking-widest uppercase mb-1 flex items-center gap-1.5" style={{ color: "#c9a84c" }}><Sparkles size={11} strokeWidth={2} /> Equanima</span>
-                <div className="flex items-center gap-1 px-4 py-3 rounded-lg"
-                  style={{ background: "#242428", border: "1px solid #2a2a2e" }}>
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="w-1.5 h-1.5 rounded-full"
-                      style={{ background: "#c9a84c", animation: `blink 1.2s ${i * 0.2}s ease-in-out infinite` }} />
-                  ))}
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-semibold tracking-widest uppercase flex items-center gap-1.5" style={{ color: "#c9a84c" }}><Sparkles size={11} strokeWidth={2} /> Equanima</span>
+                <div className="gentle-pulse">
+                  <Sparkles size={18} color="#c9a84c" strokeWidth={1.5} />
                 </div>
               </div>
             </div>
@@ -836,14 +871,10 @@ function ChatScreen({ challenge, mood, messages, onBack, onSend, onGenerateWisdo
           {/* Counterpoint loading */}
           {isCounterpointing && (
             <div className="flex justify-start">
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-semibold tracking-widest uppercase mb-1 flex items-center gap-1.5" style={{ color: "#a8863a" }}><Scale size={11} strokeWidth={2} /> Counterpoint</span>
-                <div className="flex items-center gap-1 px-4 py-3 rounded-lg"
-                  style={{ background: "#1c1a14", border: "1px solid #4a3a1e" }}>
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="w-1.5 h-1.5 rounded-full"
-                      style={{ background: "#a8863a", animation: `blink 1.2s ${i * 0.2}s ease-in-out infinite` }} />
-                  ))}
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-semibold tracking-widest uppercase flex items-center gap-1.5" style={{ color: "#a8863a" }}><Scale size={11} strokeWidth={2} /> Counterpoint</span>
+                <div className="gentle-pulse">
+                  <Scale size={18} color="#a8863a" strokeWidth={1.5} />
                 </div>
               </div>
             </div>
@@ -857,19 +888,19 @@ function ChatScreen({ challenge, mood, messages, onBack, onSend, onGenerateWisdo
       {suggestions.length > 0 && !isStreaming && (
         <div className="px-4 pt-3 pb-1">
           <div className="max-w-2xl mx-auto">
-            <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "#6b6460" }}>Continue exploring</p>
+            <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "#4a4448" }}>Continue exploring</p>
             <div className="flex flex-wrap gap-2">
               {suggestions.map((s, i) => (
                 <button key={i} onClick={() => onSend(s)}
                   className="text-xs px-3 py-1.5 rounded-full transition-all"
-                  style={{ background: "rgba(201,168,76,0.08)", border: "1px solid rgba(201,168,76,0.25)", color: "#c9a84c" }}
+                  style={{ background: "transparent", border: "1px solid #2a2a2e", color: "#6b6460" }}
                   onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(201,168,76,0.16)";
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(201,168,76,0.5)";
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = "#c9a84c";
+                    (e.currentTarget as HTMLButtonElement).style.color = "#c9a84c";
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(201,168,76,0.08)";
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(201,168,76,0.25)";
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = "#2a2a2e";
+                    (e.currentTarget as HTMLButtonElement).style.color = "#6b6460";
                   }}>
                   {s}
                 </button>
@@ -898,7 +929,7 @@ function ChatScreen({ challenge, mood, messages, onBack, onSend, onGenerateWisdo
                 style={{ background: "linear-gradient(135deg, #c9a84c, #a8863a)", color: "#1c1c1e" }}
                 onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.9"; }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}>
-                <Sparkles size={14} strokeWidth={2} style={{ display: "inline", marginRight: 6 }} />Generate Wisdom Card
+                <Sparkles size={14} strokeWidth={2} style={{ display: "inline", marginRight: 6 }} />Distil this into wisdom
               </button>
             )}
           </div>
@@ -910,7 +941,7 @@ function ChatScreen({ challenge, mood, messages, onBack, onSend, onGenerateWisdo
         <div className="max-w-2xl mx-auto">
           <form onSubmit={handleSubmit} className="flex gap-2 items-end">
             <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
-              placeholder="Share what's on your mind…" rows={1} disabled={isStreaming}
+              placeholder={PLACEHOLDERS[placeholderIdx]} rows={1} disabled={isStreaming}
               className="flex-1 resize-none text-sm rounded-lg px-4 py-3 outline-none transition-all"
               style={{ background: "#2a2a2e", color: "#f5f0e8", border: "1px solid #3a3a3e", maxHeight: "120px", lineHeight: "1.5" }}
               onFocus={(e) => { e.currentTarget.style.borderColor = "#c9a84c"; }}
@@ -947,15 +978,23 @@ function ChatScreen({ challenge, mood, messages, onBack, onSend, onGenerateWisdo
 
 // ─── Wisdom Card Screen ───────────────────────────────────────────────────────
 
-function WisdomCardScreen({ card, challenge, onNewSession }: {
+function WisdomCardScreen({ card, challenge, onNewSession, onContinue }: {
   card: WisdomCard;
   challenge: Challenge;
   onNewSession: () => void;
+  onContinue: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [sitMode, setSitMode] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setRevealed(true), 80);
+    return () => clearTimeout(t);
+  }, []);
 
   async function handleCopy() {
-    const text = `✦ Equanima Wisdom Card — ${challenge.label}\n\n"${card.insight}"\n\nTraditions: ${card.traditions.join(" · ")}\n\nPractice: ${card.practice}\n\nReflection: ${card.reflection}\n\n— Equanima: Where ancient wisdom meets modern challenges`;
+    const text = `✦ Equanima Wisdom Card — ${challenge.label}\n\n"${card.insight}"\n\nTraditions: ${card.traditions.join(" · ")}\n\nPractice: ${card.practice}\n\nReflection: ${card.reflection}\n\n— Equanima: a space for the examined life`;
     await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -969,23 +1008,52 @@ function WisdomCardScreen({ card, challenge, onNewSession }: {
     a.click();
   }
 
+  // "Sit with this" full-screen mode — just the insight quote and reflection
+  if (sitMode) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-8 py-16 fade-in"
+        style={{ background: "#1c1c1e" }}>
+        <div className="max-w-xl text-center">
+          <div className="mb-8 flex justify-center gentle-pulse">
+            <Sparkles size={24} color="#c9a84c" strokeWidth={1.5} />
+          </div>
+          <blockquote className="text-2xl font-medium leading-relaxed italic mb-10"
+            style={{ color: "#f5f0e8", fontFamily: "var(--font-playfair), Georgia, serif" }}>
+            &ldquo;{card.insight}&rdquo;
+          </blockquote>
+          <div className="w-16 h-px mx-auto mb-8" style={{ background: "linear-gradient(to right, transparent, #c9a84c, transparent)" }} />
+          <p className="text-base leading-relaxed italic" style={{ color: "#c8bfaf" }}>
+            {card.reflection}
+          </p>
+          <button onClick={() => setSitMode(false)}
+            className="mt-12 text-xs uppercase tracking-widest transition-colors"
+            style={{ color: "#4a4448" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#c9a84c"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#4a4448"; }}>
+            Return to card
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 py-16">
       <div className="w-full max-w-lg">
-        <div className="text-center mb-10">
+        <div className={`text-center mb-10 ${revealed ? "fade-in-up" : "opacity-0"}`}>
           <div className="mb-3 flex justify-center">
             <Sparkles size={36} color="#c9a84c" strokeWidth={1.5} />
           </div>
           <h2 className="text-3xl font-bold mb-1"
             style={{ color: "#c9a84c", fontFamily: "var(--font-playfair), Georgia, serif" }}>
-            Wisdom Card
+            Your Wisdom Card
           </h2>
           <p className="text-sm flex items-center justify-center gap-2" style={{ color: "#6b6460" }}>
             <ChallengeIcon id={challenge.id} size={14} color="#6b6460" /> {challenge.label}
           </p>
         </div>
 
-        <div className="rounded-xl p-8 mb-8"
+        <div className={`rounded-xl p-8 mb-6 ${revealed ? "fade-in-up delay-200" : "opacity-0"}`}
           style={{ background: "#242428", border: "1px solid #3a3a3e", boxShadow: "0 0 40px rgba(201,168,76,0.08)" }}>
           <div className="w-full h-px mb-8"
             style={{ background: "linear-gradient(to right, transparent, #c9a84c, transparent)" }} />
@@ -1012,7 +1080,7 @@ function WisdomCardScreen({ card, challenge, onNewSession }: {
           </div>
 
           <div>
-            <h4 className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#a8863a" }}>Reflection</h4>
+            <h4 className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#a8863a" }}>Sit with this</h4>
             <p className="text-sm leading-relaxed italic" style={{ color: "#c8bfaf" }}>{card.reflection}</p>
           </div>
 
@@ -1020,14 +1088,26 @@ function WisdomCardScreen({ card, challenge, onNewSession }: {
             style={{ background: "linear-gradient(to right, transparent, #c9a84c, transparent)" }} />
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        {/* Sit with this button */}
+        <div className={`mb-4 ${revealed ? "fade-in delay-300" : "opacity-0"}`}>
+          <button onClick={() => setSitMode(true)}
+            className="w-full py-3 rounded-lg text-sm transition-all"
+            style={{ border: "1px solid #2a2a2e", color: "#6b6460", background: "transparent" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#c9a84c"; (e.currentTarget as HTMLButtonElement).style.color = "#c9a84c"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#2a2a2e"; (e.currentTarget as HTMLButtonElement).style.color = "#6b6460"; }}>
+            <Sparkles size={13} strokeWidth={1.5} style={{ display: "inline", marginRight: 6 }} />
+            Sit with this quietly
+          </button>
+        </div>
+
+        <div className={`grid grid-cols-2 gap-3 mb-3 ${revealed ? "fade-in delay-400" : "opacity-0"}`}>
           <button onClick={handleCopy}
             className="py-3 rounded-lg text-xs font-semibold transition-all"
-            style={{ border: "1px solid #c9a84c", color: "#c9a84c", background: "transparent" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(201,168,76,0.08)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
+            style={{ border: "1px solid #3a3a3e", color: "#c8bfaf", background: "transparent" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#c9a84c"; (e.currentTarget as HTMLButtonElement).style.color = "#c9a84c"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#3a3a3e"; (e.currentTarget as HTMLButtonElement).style.color = "#c8bfaf"; }}>
             <Copy size={13} strokeWidth={2} style={{ display: "inline", marginRight: 5 }} />
-            {copied ? "Copied!" : "Copy Text"}
+            {copied ? "Copied!" : "Copy"}
           </button>
           <button onClick={handleDownload}
             className="py-3 rounded-lg text-xs font-semibold transition-all"
@@ -1036,17 +1116,27 @@ function WisdomCardScreen({ card, challenge, onNewSession }: {
             onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#3a3a3e"; (e.currentTarget as HTMLButtonElement).style.color = "#c8bfaf"; }}>
             <Download size={13} strokeWidth={2} style={{ display: "inline", marginRight: 5 }} />Download
           </button>
+        </div>
+
+        <div className={`grid grid-cols-2 gap-3 ${revealed ? "fade-in delay-500" : "opacity-0"}`}>
+          <button onClick={onContinue}
+            className="py-3 rounded-lg text-sm font-semibold transition-all"
+            style={{ border: "1px solid #c9a84c", color: "#c9a84c", background: "transparent" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(201,168,76,0.08)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
+            Continue the conversation
+          </button>
           <button onClick={onNewSession}
-            className="py-3 rounded-lg text-xs font-semibold transition-all"
+            className="py-3 rounded-lg text-sm font-semibold transition-all"
             style={{ background: "linear-gradient(135deg, #c9a84c, #a8863a)", color: "#1c1c1e" }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.9"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}>
-            New Session
+            Begin again
           </button>
         </div>
 
         <p className="text-center text-xs mt-6" style={{ color: "#4a4448" }}>
-          Equanima · Where ancient wisdom meets modern challenges
+          Equanima · a space for the examined life
         </p>
       </div>
     </div>
@@ -1130,6 +1220,8 @@ export default function Page() {
     setSessionStart(Date.now());
     setSessionTime(0);
     systemPromptRef.current = buildSystemPrompt(selectedMood, selectedTraditions, onboardingLevel);
+    setScreen("transitioning");
+    await new Promise((r) => setTimeout(r, 1800));
     setScreen("chat");
     await animateOpening(challenge!.opening);
   }
@@ -1333,6 +1425,10 @@ export default function Page() {
         <MoodScreen challenge={challenge} onSelect={selectMood} onBack={() => setScreen("landing")} />
       )}
 
+      {screen === "transitioning" && challenge && (
+        <TransitionScreen challenge={challenge} />
+      )}
+
       {screen === "chat" && challenge && (
         <ChatScreen
           challenge={challenge}
@@ -1352,7 +1448,8 @@ export default function Page() {
       )}
 
       {screen === "wisdom" && wisdomCard && challenge && (
-        <WisdomCardScreen card={wisdomCard} challenge={challenge} onNewSession={handleNewSession} />
+        <WisdomCardScreen card={wisdomCard} challenge={challenge} onNewSession={handleNewSession}
+          onContinue={() => setScreen("chat")} />
       )}
     </>
   );
