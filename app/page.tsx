@@ -343,17 +343,6 @@ function generateCardImage(card: WisdomCard, challenge: Challenge): string {
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
-function loadHistory(): SessionRecord[] {
-  if (typeof window === "undefined") return [];
-  try { return JSON.parse(localStorage.getItem("equanima_history") || "[]"); }
-  catch { return []; }
-}
-
-function saveSession(record: SessionRecord) {
-  if (typeof window === "undefined") return;
-  const h = loadHistory();
-  localStorage.setItem("equanima_history", JSON.stringify([record, ...h].slice(0, 20)));
-}
 
 function loadLevel(): string {
   if (typeof window === "undefined") return "";
@@ -456,6 +445,121 @@ function showDailyNotification() {
   localStorage.setItem("equanima_notif_date", today);
 }
 
+// ─── Recovery Key Modal ───────────────────────────────────────────────────────
+
+function RecoveryKeyModal({ userKey, onClose }: { userKey: string; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(userKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.88)" }}>
+      <div className="w-full max-w-md rounded-xl p-8"
+        style={{ background: "#242428", border: "1px solid #3a3a3e" }}>
+        <div className="text-center mb-6">
+          <div className="mb-3 flex justify-center">
+            <Bookmark size={32} color="#c9a84c" strokeWidth={1.5} />
+          </div>
+          <h2 className="text-xl font-bold mb-2"
+            style={{ color: "#c9a84c", fontFamily: "var(--font-playfair), Georgia, serif" }}>
+            Your Recovery Key
+          </h2>
+          <p className="text-sm leading-relaxed" style={{ color: "#c8bfaf" }}>
+            Save this key somewhere safe — a notes app, password manager, or written down.
+            Use it to restore your history on any device.
+          </p>
+        </div>
+        <div className="p-4 rounded-lg mb-4 text-center font-mono text-sm break-all select-all"
+          style={{ background: "#1c1c1e", border: "1px solid #3a3a3e", color: "#f5f0e8" }}>
+          {userKey}
+        </div>
+        <button onClick={handleCopy}
+          className="w-full py-3 rounded-lg text-sm font-semibold mb-3 flex items-center justify-center gap-2 transition-all"
+          style={{ background: "linear-gradient(135deg, #c9a84c, #a8863a)", color: "#1c1c1e" }}>
+          <Copy size={14} strokeWidth={2} />
+          {copied ? "Copied!" : "Copy to clipboard"}
+        </button>
+        <button onClick={onClose} className="w-full py-2 text-sm transition-colors"
+          style={{ color: "#6b6460" }}>
+          I&apos;ve saved my key
+        </button>
+        <p className="text-center text-xs mt-4" style={{ color: "#4a4448" }}>
+          No email. No account. Your conversations belong to you.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Recover Account Modal ────────────────────────────────────────────────────
+
+function RecoverModal({ onRecover, onClose }: {
+  onRecover: (key: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [input, setInput] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit() {
+    if (!input.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      await onRecover(input.trim());
+    } catch {
+      setError("Key not found. Please check and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.88)" }}>
+      <div className="w-full max-w-md rounded-xl p-8"
+        style={{ background: "#242428", border: "1px solid #3a3a3e" }}>
+        <div className="text-center mb-6">
+          <h2 className="text-xl font-bold mb-2"
+            style={{ color: "#c9a84c", fontFamily: "var(--font-playfair), Georgia, serif" }}>
+            Recover Your Account
+          </h2>
+          <p className="text-sm" style={{ color: "#c8bfaf" }}>
+            Enter your recovery key to restore your conversation history.
+          </p>
+        </div>
+        <textarea value={input} onChange={(e) => setInput(e.target.value)}
+          placeholder="Paste your recovery key here…"
+          rows={3}
+          className="w-full p-3 rounded-lg text-sm font-mono mb-3 resize-none outline-none"
+          style={{
+            background: "#1c1c1e",
+            border: `1px solid ${error ? "#c0392b" : "#3a3a3e"}`,
+            color: "#f5f0e8",
+          }} />
+        {error && <p className="text-xs mb-3" style={{ color: "#c0392b" }}>{error}</p>}
+        <button onClick={handleSubmit} disabled={loading || !input.trim()}
+          className="w-full py-3 rounded-lg text-sm font-semibold mb-3 transition-all"
+          style={{
+            background: "linear-gradient(135deg, #c9a84c, #a8863a)",
+            color: "#1c1c1e",
+            opacity: loading || !input.trim() ? 0.5 : 1,
+          }}>
+          {loading ? "Recovering…" : "Restore my history"}
+        </button>
+        <button onClick={onClose} className="w-full py-2 text-sm" style={{ color: "#6b6460" }}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Onboarding Modal ─────────────────────────────────────────────────────────
 
 function OnboardingModal({ onComplete }: { onComplete: (level: string) => void }) {
@@ -504,12 +608,13 @@ function OnboardingModal({ onComplete }: { onComplete: (level: string) => void }
 
 // ─── History Panel ────────────────────────────────────────────────────────────
 
-function HistoryPanel({ history, favourites, onClose, onClear, onResume }: {
+function HistoryPanel({ history, favourites, onClose, onClear, onResume, userKey }: {
   history: SessionRecord[];
   favourites: string[];
   onClose: () => void;
   onClear: () => void;
   onResume: (record: SessionRecord) => void;
+  userKey: string | null;
 }) {
   const [tab, setTab] = useState<"sessions" | "saved">("sessions");
 
@@ -629,6 +734,13 @@ function HistoryPanel({ history, favourites, onClose, onClear, onResume }: {
             </button>
           </div>
         )}
+
+        {userKey && (
+          <div className="p-4 pt-0" style={{ borderTop: history.length > 0 && tab === "sessions" ? undefined : "1px solid #2a2a2e" }}>
+            <p className="text-xs mb-1" style={{ color: "#4a4448" }}>Your recovery key</p>
+            <p className="font-mono text-xs break-all select-all" style={{ color: "#6b6460" }}>{userKey}</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -637,7 +749,7 @@ function HistoryPanel({ history, favourites, onClose, onClear, onResume }: {
 // ─── Landing Screen ───────────────────────────────────────────────────────────
 
 function LandingScreen({ onSelect, selectedTraditions, onTraditionsChange, onShowHistory, historyCount,
-  streak, suggestedChallenge, notifEnabled, onNotificationToggle }: {
+  streak, suggestedChallenge, notifEnabled, onNotificationToggle, onRecover }: {
   onSelect: (c: Challenge) => void;
   selectedTraditions: string[];
   onTraditionsChange: (t: string[]) => void;
@@ -647,6 +759,7 @@ function LandingScreen({ onSelect, selectedTraditions, onTraditionsChange, onSho
   suggestedChallenge: Challenge | null;
   notifEnabled: boolean;
   onNotificationToggle: () => void;
+  onRecover: () => void;
 }) {
   const [showTraditions, setShowTraditions] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -838,6 +951,13 @@ function LandingScreen({ onSelect, selectedTraditions, onTraditionsChange, onSho
       <footer className="text-center py-5 text-xs tracking-wide"
         style={{ color: "#6b6460", borderTop: "1px solid #2a2a2e" }}>
         Equanima — a space for the examined life
+        <span className="mx-3" style={{ color: "#3a3a3e" }}>·</span>
+        <button onClick={onRecover} className="transition-colors"
+          style={{ color: "#4a4448" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#c9a84c"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#4a4448"; }}>
+          Recover account
+        </button>
       </footer>
     </div>
   );
@@ -1421,6 +1541,10 @@ export default function Page() {
   const [suggestedChallenge, setSuggestedChallenge] = useState<Challenge | null>(null);
   const [favourites, setFavourites] = useState<string[]>([]);
   const [notifEnabled, setNotifEnabled] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userKey, setUserKey] = useState<string | null>(null);
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [showRecoverModal, setShowRecoverModal] = useState(false);
 
   // Load persisted data on mount
   useEffect(() => {
@@ -1428,7 +1552,6 @@ export default function Page() {
     setOnboardingLevel(level);
     setShowOnboarding(!level);
     setSelectedTraditions(loadTraditions());
-    setHistory(loadHistory());
     const s = updateStreak();
     setStreak(s);
     const counts = loadVisitCounts();
@@ -1438,6 +1561,16 @@ export default function Page() {
     const notifPref = localStorage.getItem("equanima_notif") === "true";
     setNotifEnabled(notifPref);
     if (notifPref) showDailyNotification();
+
+    const storedKey = localStorage.getItem("equanima_user_key");
+    const storedId = localStorage.getItem("equanima_user_id");
+    if (storedKey && storedId) {
+      setUserId(storedId);
+      setUserKey(storedKey);
+      loadHistoryFromDB(storedId);
+    } else {
+      initUser();
+    }
   }, []);
 
   // Session timer
@@ -1446,6 +1579,84 @@ export default function Page() {
     const id = setInterval(() => setSessionTime(Math.floor((Date.now() - sessionStart) / 1000)), 1000);
     return () => clearInterval(id);
   }, [sessionStart]);
+
+  async function initUser() {
+    try {
+      const res = await fetch("/api/user/init", { method: "POST" });
+      const data = await res.json();
+      localStorage.setItem("equanima_user_key", data.userKey);
+      localStorage.setItem("equanima_user_id", data.userId);
+      setUserId(data.userId);
+      setUserKey(data.userKey);
+      setShowKeyModal(true);
+    } catch (e) {
+      console.error("Failed to init user", e);
+    }
+  }
+
+  async function loadHistoryFromDB(uid: string) {
+    try {
+      const res = await fetch(`/api/sessions?userId=${uid}`);
+      const data = await res.json();
+      const records: SessionRecord[] = (data.sessions ?? []).map((s: {
+        id: string; challenge_label: string; challenge_icon: string;
+        challenge_id: string; mood: string; created_at: string;
+        message_count: number; preview: string; messages: Message[];
+      }) => ({
+        id: s.id,
+        challengeLabel: s.challenge_label,
+        challengeIcon: s.challenge_icon,
+        challengeId: s.challenge_id,
+        mood: s.mood,
+        timestamp: new Date(s.created_at).getTime(),
+        messageCount: s.message_count,
+        preview: s.preview ?? "",
+        messages: s.messages ?? [],
+      }));
+      setHistory(records);
+    } catch (e) {
+      console.error("Failed to load history", e);
+    }
+  }
+
+  async function saveSessionToDB(record: SessionRecord) {
+    if (!userId) return;
+    try {
+      await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, session: record }),
+      });
+    } catch (e) {
+      console.error("Failed to save session", e);
+    }
+  }
+
+  async function handleClearHistory() {
+    if (!userId) return;
+    await fetch("/api/sessions", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    setHistory([]);
+  }
+
+  async function handleRecover(key: string) {
+    const res = await fetch("/api/user/recover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userKey: key }),
+    });
+    if (!res.ok) throw new Error("Key not found");
+    const data = await res.json();
+    localStorage.setItem("equanima_user_key", key);
+    localStorage.setItem("equanima_user_id", data.userId);
+    setUserId(data.userId);
+    setUserKey(key);
+    setShowRecoverModal(false);
+    await loadHistoryFromDB(data.userId);
+  }
 
   function handleOnboardingComplete(level: string) {
     saveLevel(level);
@@ -1604,8 +1815,8 @@ export default function Page() {
         preview: userMessages[0].content,
         messages,
       };
-      saveSession(record);
-      setHistory(loadHistory());
+      await saveSessionToDB(record);
+      await loadHistoryFromDB(userId!);
     }
 
     try {
@@ -1636,8 +1847,7 @@ export default function Page() {
     setSessionTime(0);
   }
 
-  function handleBack() {
-    // Save partial session if meaningful
+  async function handleBack() {
     const userMessages = messages.filter((m) => m.role === "user");
     if (challenge && userMessages.length >= 2) {
       const record: SessionRecord = {
@@ -1651,8 +1861,8 @@ export default function Page() {
         preview: userMessages[0].content,
         messages,
       };
-      saveSession(record);
-      setHistory(loadHistory());
+      await saveSessionToDB(record);
+      await loadHistoryFromDB(userId!);
     }
     handleNewSession();
   }
@@ -1731,16 +1941,20 @@ export default function Page() {
   return (
     <>
       {showOnboarding && <OnboardingModal onComplete={handleOnboardingComplete} />}
+      {showKeyModal && userKey && (
+        <RecoveryKeyModal userKey={userKey} onClose={() => setShowKeyModal(false)} />
+      )}
+      {showRecoverModal && (
+        <RecoverModal onRecover={handleRecover} onClose={() => setShowRecoverModal(false)} />
+      )}
       {showHistory && (
         <HistoryPanel
           history={history}
           favourites={favourites}
           onClose={() => setShowHistory(false)}
-          onClear={() => {
-            localStorage.removeItem("equanima_history");
-            setHistory([]);
-          }}
+          onClear={handleClearHistory}
           onResume={handleResume}
+          userKey={userKey}
         />
       )}
 
@@ -1767,6 +1981,7 @@ export default function Page() {
           suggestedChallenge={suggestedChallenge}
           notifEnabled={notifEnabled}
           onNotificationToggle={handleNotificationToggle}
+          onRecover={() => setShowRecoverModal(true)}
         />
       )}
 
